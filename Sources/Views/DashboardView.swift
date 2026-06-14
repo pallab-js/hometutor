@@ -665,7 +665,27 @@ struct AddStudentSheet: View {
                         return
                     }
                     
-                    let student = Student(name: trimmedName, subject: subject, grade: grade, rateType: rateType, rateValue: rateValue, contactEmail: email, contactPhone: phone, scheduleNotes: scheduleNotes, notes: notes)
+                    let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmedEmail.isEmpty {
+                        let emailRegex = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
+                        let emailPred = NSPredicate(format:"SELF MATCHES %@", emailRegex)
+                        if !emailPred.evaluate(with: trimmedEmail) {
+                            validationError = "Please enter a valid email address."
+                            return
+                        }
+                    }
+                    
+                    let trimmedPhone = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmedPhone.isEmpty {
+                        let phoneRegex = "^[0-9\\s+\\-()]{7,20}$"
+                        let phonePred = NSPredicate(format:"SELF MATCHES %@", phoneRegex)
+                        if !phonePred.evaluate(with: trimmedPhone) {
+                            validationError = "Please enter a valid phone number (digits, spaces, hyphens, and parentheses only)."
+                            return
+                        }
+                    }
+                    
+                    let student = Student(name: trimmedName, subject: subject, grade: grade, rateType: rateType, rateValue: rateValue, contactEmail: trimmedEmail, contactPhone: trimmedPhone, scheduleNotes: scheduleNotes, notes: notes)
                     store.addStudent(student)
                     dismiss()
                 }

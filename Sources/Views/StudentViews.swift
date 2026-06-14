@@ -798,6 +798,26 @@ struct EditStudentSheet: View {
                         return
                     }
                     
+                    let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmedEmail.isEmpty {
+                        let emailRegex = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
+                        let emailPred = NSPredicate(format:"SELF MATCHES %@", emailRegex)
+                        if !emailPred.evaluate(with: trimmedEmail) {
+                            validationError = "Please enter a valid email address."
+                            return
+                        }
+                    }
+                    
+                    let trimmedPhone = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmedPhone.isEmpty {
+                        let phoneRegex = "^[0-9\\s+\\-()]{7,20}$"
+                        let phonePred = NSPredicate(format:"SELF MATCHES %@", phoneRegex)
+                        if !phonePred.evaluate(with: trimmedPhone) {
+                            validationError = "Please enter a valid phone number (digits, spaces, hyphens, and parentheses only)."
+                            return
+                        }
+                    }
+                    
                     var updated = student
                     updated.name = trimmedName
                     updated.subject = subject
@@ -805,8 +825,8 @@ struct EditStudentSheet: View {
                     updated.isActive = isActive
                     updated.rateType = rateType
                     updated.rateValue = rateVal
-                    updated.contactEmail = email
-                    updated.contactPhone = phone
+                    updated.contactEmail = trimmedEmail
+                    updated.contactPhone = trimmedPhone
                     updated.scheduleNotes = scheduleNotes
                     updated.notes = notes
                     

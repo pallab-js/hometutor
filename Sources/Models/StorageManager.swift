@@ -284,6 +284,14 @@ public class StorageManager: ObservableObject {
         return max(0, diff / 3600.0)
     }
     
+    private func sanitizeCSVField(_ field: String) -> String {
+        let formulaChars: [Character] = ["=", "+", "-", "@"]
+        if let firstChar = field.first, formulaChars.contains(firstChar) {
+            return "'\(field)"
+        }
+        return field
+    }
+    
     public func exportToCSV() -> String? {
         guard !payments.isEmpty else { return nil }
         
@@ -295,9 +303,10 @@ public class StorageManager: ObservableObject {
         for payment in payments {
             let studentName = students.first(where: { $0.id == payment.studentId })?.name ?? "Unknown Student"
             let dateStr = formatter.string(from: payment.date)
-            let escapedNotes = payment.notes.replacingOccurrences(of: "\"", with: "\"\"")
+            let sanitizedName = sanitizeCSVField(studentName)
+            let sanitizedNotes = sanitizeCSVField(payment.notes).replacingOccurrences(of: "\"", with: "\"\"")
             
-            csvString += "\(dateStr),\"\(studentName)\",\(payment.amount),\(payment.hoursTaught),\"\(escapedNotes)\"\n"
+            csvString += "\(dateStr),\"\(sanitizedName)\",\(payment.amount),\(payment.hoursTaught),\"\(sanitizedNotes)\"\n"
         }
         
         return csvString
