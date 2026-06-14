@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    name: Build macOS App
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Swift 6.0
+        uses: swift-actions/setup-swift@v3
+        with:
+          swift-version: '6.0'
+
+      - name: Compile and Package App Bundle
+        run: |
+          chmod +x build.sh
+          ./build.sh
