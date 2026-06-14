@@ -22,8 +22,11 @@ cp "${BINARY_PATH}" "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
 # Copy Info.plist
 cp Info.plist "${APP_BUNDLE}/Contents/Info.plist"
 
-# Add an icon if we have one (optional, we can add later)
-# If no icon, macOS will show a default executable icon, which is fine for now
+# Add app icon
+if [ -f "HomeTutor.icns" ]; then
+    echo "🎨 Copying App Icon to Resources..."
+    cp HomeTutor.icns "${APP_BUNDLE}/Contents/Resources/HomeTutor.icns"
+fi
 
 echo "✍️  Ad-hoc Code Signing App Bundle..."
 codesign --force --deep --sign - "${APP_BUNDLE}"

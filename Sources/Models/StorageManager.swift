@@ -12,6 +12,26 @@ public class StorageManager: ObservableObject {
     @Published public var scheduleSessions: [ScheduleSession] = []
     @Published public var settings = AppSettings()
     
+    // MARK: - Live Session Timer State
+    @Published public var activeTimerStudentId: UUID? = nil
+    @Published public var timerElapsedSeconds: Int = 0
+    @Published public var isTimerRunning: Bool = false
+    @Published public var timerStartDate: Date? = nil
+    
+    // MARK: - Navigation Shortcuts
+    @Published public var preselectedTimerStudentId: UUID? = nil
+    
+    private var timer: Timer? = nil
+    
+    // MARK: - Cached Formatters
+    private let currencyFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 2
+        return formatter
+    }()
+    
     private let fileManager = FileManager.default
     private var baseDirectory: URL
     
@@ -24,11 +44,7 @@ public class StorageManager: ObservableObject {
         try? fileManager.createDirectory(at: baseDirectory, withIntermediateDirectories: true, attributes: nil)
         
         loadAllData()
-        
-        // If empty, populate with rich sample data to show analytics immediately
-        if students.isEmpty {
-            loadSampleData()
-        }
+        restoreTimerState()
     }
     
     // MARK: - File Paths
@@ -221,12 +237,10 @@ public class StorageManager: ObservableObject {
     }
     
     public func formatCurrency(_ amount: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = settings.currencyCode
-        formatter.minimumFractionDigits = 0
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSNumber(value: amount)) ?? "\(settings.currencyCode) \(amount)"
+        if currencyFormatter.currencyCode != settings.currencyCode {
+            currencyFormatter.currencyCode = settings.currencyCode
+        }
+        return currencyFormatter.string(from: NSNumber(value: amount)) ?? "\(settings.currencyCode) \(amount)"
     }
     
     public var projectedEarningsRemaining: Double {
@@ -359,5 +373,143 @@ public class StorageManager: ObservableObject {
         ]
         
         saveAllData()
+    }
+    
+    // MARK: - Live Timer State Persistence Helpers
+    private func saveTimerState() {
+        let defaults = UserDefaults.standard
+        if let studentId = activeTimerStudentId {
+            defaults.set(studentId.uuidString, forKey: "HT_ActiveTimerStudentId")
+        } else {
+            defaults.removeObject(forKey: "HT_ActiveTimerStudentId")
+        }
+        defaults.set(timerElapsedSeconds, forKey: "HT_TimerElapsedSeconds")
+        defaults.set(isTimerRunning, forKey: "HT_IsTimerRunning")
+        if let startDate = timerStartDate {
+            defaults.set(startDate, forKey: "HT_TimerStartDate")
+        } else {
+            defaults.removeObject(forKey: "HT_TimerStartDate")
+        }
+    }
+    
+    private func restoreTimerState() {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: "HT_IsTimerRunning") != nil else { return }
+        
+        let savedIsRunning = defaults.bool(forKey: "HT_IsTimerRunning")
+        let savedElapsed = defaults.integer(forKey: "HT_TimerElapsedSeconds")
+        
+        var studentUUID: UUID? = nil
+        if let uuidStr = defaults.string(forKey: "HT_ActiveTimerStudentId"), let uuid = UUID(uuidString: uuidStr) {
+            studentUUID = uuid
+        }
+        
+        let savedStartDate = defaults.object(forKey: "HT_TimerStartDate") as? Date
+        
+        self.isTimerRunning = savedIsRunning
+        self.activeTimerStudentId = studentUUID
+        
+        if savedIsRunning, let startDate = savedStartDate {
+            self.timerStartDate = startDate
+            self.timerElapsedSeconds = Int(Date().timeIntervalSince(startDate))
+            // Start the timer loop again
+            startTimer(studentId: studentUUID!)
+        } else {
+            self.timerElapsedSeconds = savedElapsed
+            self.timerStartDate = nil
+        }
+    }
+
+    // MARK: - Live Timer Methods
+    public func startTimer(studentId: UUID) {
+        activeTimerStudentId = studentId
+        isTimerRunning = true
+        if timerStartDate == nil {
+            timerStartDate = Date()
+        } else {
+            // Adjust start date if resuming
+            timerStartDate = Date().addingTimeInterval(-Double(timerElapsedSeconds))
+        }
+        
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            Task { @MainActor in
+                if let startDate = self.timerStartDate {
+                    self.timerElapsedSeconds = Int(Date().timeIntervalSince(startDate))
+                    self.saveTimerState()
+                }
+            }
+        }
+        saveTimerState()
+    }
+    
+    public func pauseTimer() {
+        isTimerRunning = false
+        timer?.invalidate()
+        timer = nil
+        timerStartDate = nil
+        saveTimerState()
+    }
+    
+    public func resetTimer() {
+        isTimerRunning = false
+        timer?.invalidate()
+        timer = nil
+        timerStartDate = nil
+        timerElapsedSeconds = 0
+        activeTimerStudentId = nil
+        saveTimerState()
+    }
+    
+    // MARK: - Backup and Restore
+    public func backupData(to destinationDirectory: URL) throws {
+        let filesToCopy = [
+            studentsURL,
+            paymentsURL,
+            assignmentsURL,
+            progressURL,
+            scheduleURL,
+            settingsURL
+        ]
+        
+        for fileURL in filesToCopy {
+            if fileManager.fileExists(atPath: fileURL.path) {
+                let destURL = destinationDirectory.appendingPathComponent(fileURL.lastPathComponent)
+                if fileManager.fileExists(atPath: destURL.path) {
+                    try fileManager.removeItem(at: destURL)
+                }
+                try fileManager.copyItem(at: fileURL, to: destURL)
+            }
+        }
+    }
+    
+    public func restoreData(from sourceDirectory: URL) throws {
+        let filesToRestore = [
+            ("students.json", studentsURL),
+            ("payments.json", paymentsURL),
+            ("assignments.json", assignmentsURL),
+            ("progress.json", progressURL),
+            ("schedule.json", scheduleURL),
+            ("settings.json", settingsURL)
+        ]
+        
+        // Validate that students.json exists
+        let checkURL = sourceDirectory.appendingPathComponent("students.json")
+        guard fileManager.fileExists(atPath: checkURL.path) else {
+            throw NSError(domain: "HomeTutor", code: 404, userInfo: [NSLocalizedDescriptionKey: "Selected directory does not contain a valid HomeTutor backup (missing students.json)."])
+        }
+        
+        for (filename, destURL) in filesToRestore {
+            let sourceURL = sourceDirectory.appendingPathComponent(filename)
+            if fileManager.fileExists(atPath: sourceURL.path) {
+                if fileManager.fileExists(atPath: destURL.path) {
+                    try fileManager.removeItem(at: destURL)
+                }
+                try fileManager.copyItem(at: sourceURL, to: destURL)
+            }
+        }
+        
+        loadAllData()
     }
 }

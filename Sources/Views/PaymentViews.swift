@@ -5,6 +5,7 @@ public struct PaymentViews: View {
     @EnvironmentObject var store: StorageManager
     @State private var showingAddPayment = false
     @State private var selectedStudentFilter: UUID? = nil
+    @State private var editingPayment: Payment? = nil
     
     public init() {}
     
@@ -127,11 +128,19 @@ public struct PaymentViews: View {
                         }
                         
                         TableColumn("Action") { payment in
-                            Button(action: { store.deletePayment(id: payment.id) }) {
-                                Image(systemName: "trash")
-                                    .foregroundColor(.red)
+                            HStack(spacing: 10) {
+                                Button(action: { editingPayment = payment }) {
+                                    Image(systemName: "pencil")
+                                        .foregroundColor(.blue)
+                                }
+                                .buttonStyle(.plain)
+                                
+                                Button(action: { store.deletePayment(id: payment.id) }) {
+                                    Image(systemName: "trash")
+                                        .foregroundColor(.red)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -140,6 +149,9 @@ public struct PaymentViews: View {
         }
         .sheet(isPresented: $showingAddPayment) {
             AddPaymentSheet()
+        }
+        .sheet(item: $editingPayment) { payment in
+            EditPaymentSheet(payment: payment)
         }
     }
     
@@ -172,5 +184,92 @@ extension DateFormatter {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd"
         return formatter.string(from: date)
+    }
+}
+
+struct EditPaymentSheet: View {
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var store: StorageManager
+    let payment: Payment
+    
+    @State private var selectedStudentId: UUID
+    @State private var amountString: String
+    @State private var hoursString: String
+    @State private var notes: String
+    @State private var date: Date
+    @State private var validationError: String? = nil
+    
+    init(payment: Payment) {
+        self.payment = payment
+        _selectedStudentId = State(initialValue: payment.studentId)
+        _amountString = State(initialValue: String(payment.amount))
+        _hoursString = State(initialValue: String(payment.hoursTaught))
+        _notes = State(initialValue: payment.notes)
+        _date = State(initialValue: payment.date)
+    }
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Edit Payment Record")
+                .font(.headline)
+                .padding(.top)
+            
+            if let error = validationError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding(.horizontal)
+            }
+            
+            Form {
+                Picker("Student", selection: $selectedStudentId) {
+                    ForEach(store.students) { student in
+                        Text(student.name).tag(student.id)
+                    }
+                }
+                
+                TextField("Amount (\(store.settings.currencyCode))", text: $amountString)
+                TextField("Hours Taught", text: $hoursString)
+                DatePicker("Date", selection: $date, displayedComponents: [.date])
+                TextField("Notes", text: $notes)
+            }
+            .formStyle(.columns)
+            .padding(.horizontal)
+            .frame(width: 420, height: 200)
+            
+            HStack {
+                Button("Cancel") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+                
+                Spacer()
+                
+                Button("Save Changes") {
+                    guard let amount = Double(amountString), amount > 0 else {
+                        validationError = "Please enter a valid positive amount."
+                        return
+                    }
+                    let hours = Double(hoursString) ?? 0.0
+                    if hours < 0 {
+                        validationError = "Hours taught cannot be negative."
+                        return
+                    }
+                    
+                    var updated = payment
+                    updated.studentId = selectedStudentId
+                    updated.amount = amount
+                    updated.hoursTaught = hours
+                    updated.notes = notes
+                    updated.date = date
+                    
+                    store.updatePayment(updated)
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+            }
+            .padding([.horizontal, .bottom])
+        }
     }
 }

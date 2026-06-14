@@ -5,16 +5,25 @@ public struct StudentListView: View {
     @State private var searchText = ""
     @Binding private var selectedStudentId: UUID?
     @State private var showingAddStudent = false
+    let onNavigateToTimer: () -> Void
     
-    public init(selectedStudentId: Binding<UUID?>) {
+    public init(selectedStudentId: Binding<UUID?>, onNavigateToTimer: @escaping () -> Void) {
         self._selectedStudentId = selectedStudentId
+        self.onNavigateToTimer = onNavigateToTimer
     }
     
     private var filteredStudents: [Student] {
         if searchText.isEmpty {
             return store.students
         } else {
-            return store.students.filter { $0.name.localizedCaseInsensitiveContains(searchText) || $0.subject.localizedCaseInsensitiveContains(searchText) }
+            return store.students.filter { student in
+                student.name.localizedCaseInsensitiveContains(searchText) ||
+                student.subject.localizedCaseInsensitiveContains(searchText) ||
+                student.grade.localizedCaseInsensitiveContains(searchText) ||
+                student.contactPhone.localizedCaseInsensitiveContains(searchText) ||
+                student.contactEmail.localizedCaseInsensitiveContains(searchText) ||
+                student.notes.localizedCaseInsensitiveContains(searchText)
+            }
         }
     }
     
@@ -101,7 +110,7 @@ public struct StudentListView: View {
             }
         } detail: {
             if let studentId = selectedStudentId, let student = store.students.first(where: { $0.id == studentId }) {
-                StudentDetailView(student: student)
+                StudentDetailView(student: student, onNavigateToTimer: onNavigateToTimer)
             } else {
                 VStack(spacing: 15) {
                     Image(systemName: "person.2.fill")
@@ -121,6 +130,7 @@ public struct StudentListView: View {
 // MARK: - Student Detail View
 struct StudentDetailView: View {
     let student: Student
+    let onNavigateToTimer: () -> Void
     @EnvironmentObject var store: StorageManager
     @State private var activeTab = 0
     @State private var showingEditProfile = false
@@ -183,13 +193,18 @@ struct StudentDetailView: View {
             .background(Color(NSColor.windowBackgroundColor))
             
             // Tabs
-            Picker("", selection: $activeTab) {
-                Text("Overview").tag(0)
-                Text("Progress Logs").tag(1)
-                Text("Assignments").tag(2)
-                Text("Billing & Payments").tag(3)
+            HStack {
+                Spacer()
+                Picker("", selection: $activeTab) {
+                    Text("Overview").tag(0)
+                    Text("Progress Logs").tag(1)
+                    Text("Assignments").tag(2)
+                    Text("Billing & Payments").tag(3)
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 600)
+                Spacer()
             }
-            .pickerStyle(.segmented)
             .padding(.horizontal, 25)
             .padding(.bottom, 10)
             
@@ -200,7 +215,7 @@ struct StudentDetailView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     switch activeTab {
                     case 0:
-                        OverviewTab(student: student, totalBilled: totalBilled, totalHours: studentPayments.reduce(0) { $0 + $1.hoursTaught })
+                        OverviewTab(student: student, totalBilled: totalBilled, totalHours: studentPayments.reduce(0) { $0 + $1.hoursTaught }, onNavigateToTimer: onNavigateToTimer)
                     case 1:
                         ProgressLogsTab(student: student, logs: studentLogs, showingAddLog: $showingAddLog)
                     case 2:
@@ -231,6 +246,7 @@ struct OverviewTab: View {
     let student: Student
     let totalBilled: Double
     let totalHours: Double
+    let onNavigateToTimer: () -> Void
     @EnvironmentObject var store: StorageManager
     
     var body: some View {
@@ -249,6 +265,11 @@ struct OverviewTab: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(10)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.01), radius: 3, x: 0, y: 1)
                 
                 // Info Card 2: Cumulative Hours/Amount
                 VStack(alignment: .leading, spacing: 8) {
@@ -263,6 +284,11 @@ struct OverviewTab: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(10)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.01), radius: 3, x: 0, y: 1)
                 
                 // Info Card 3: Total Hours
                 VStack(alignment: .leading, spacing: 8) {
@@ -277,6 +303,39 @@ struct OverviewTab: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(10)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.01), radius: 3, x: 0, y: 1)
+            }
+            
+            if student.rateType == .hourly && student.isActive {
+                Button(action: {
+                    store.preselectedTimerStudentId = student.id
+                    onNavigateToTimer()
+                }) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "timer")
+                            .font(.title3)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Start Lesson Timer")
+                                .font(.headline)
+                            Text("Track this student's class duration in real-time and auto-calculate billing.")
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.85))
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.body.weight(.bold))
+                    }
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 16)
+                    .foregroundColor(.white)
+                    .background(LinearGradient(colors: [.green, .mint], startPoint: .leading, endPoint: .trailing))
+                    .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
             }
             
             VStack(alignment: .leading, spacing: 15) {
@@ -340,6 +399,7 @@ struct ProgressLogsTab: View {
     let logs: [ProgressLog]
     @Binding var showingAddLog: Bool
     @EnvironmentObject var store: StorageManager
+    @State private var editingLog: ProgressLog? = nil
     
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
@@ -383,6 +443,16 @@ struct ProgressLogsTab: View {
                                 }
                                 
                                 Button(action: {
+                                    editingLog = log
+                                }) {
+                                    Image(systemName: "pencil")
+                                        .foregroundColor(.blue)
+                                        .font(.caption)
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.trailing, 8)
+                                
+                                Button(action: {
                                     store.deleteProgressLog(id: log.id)
                                 }) {
                                     Image(systemName: "trash")
@@ -420,6 +490,9 @@ struct ProgressLogsTab: View {
                 }
             }
         }
+        .sheet(item: $editingLog) { log in
+            EditProgressLogSheet(log: log)
+        }
     }
 }
 
@@ -429,6 +502,7 @@ struct AssignmentsTab: View {
     let assignments: [Assignment]
     @Binding var showingAddAssignment: Bool
     @EnvironmentObject var store: StorageManager
+    @State private var editingAssignment: Assignment? = nil
     
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
@@ -497,6 +571,12 @@ struct AssignmentsTab: View {
                                     }
                                 }
                                 
+                                Button(action: { editingAssignment = assignment }) {
+                                    Image(systemName: "pencil")
+                                        .foregroundColor(.blue)
+                                }
+                                .buttonStyle(.plain)
+                                
                                 Button(action: { store.deleteAssignment(id: assignment.id) }) {
                                     Image(systemName: "trash")
                                         .foregroundColor(.red)
@@ -510,6 +590,9 @@ struct AssignmentsTab: View {
                     }
                 }
             }
+        }
+        .sheet(item: $editingAssignment) { assignment in
+            EditAssignmentSheet(assignment: assignment)
         }
     }
 }
@@ -560,11 +643,19 @@ struct BillingTab: View {
     let student: Student
     let payments: [Payment]
     @EnvironmentObject var store: StorageManager
+    @State private var showingRecordPayment = false
+    @State private var editingPayment: Payment? = nil
     
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
-            Text("Payment History")
-                .font(.headline)
+            HStack {
+                Text("Payment History")
+                    .font(.headline)
+                Spacer()
+                Button(action: { showingRecordPayment = true }) {
+                    Label("Record Payment", systemImage: "indianrupeesign.circle.fill")
+                }
+            }
             
             if payments.isEmpty {
                 Text("No payments logged for this student.")
@@ -588,15 +679,29 @@ struct BillingTab: View {
                         Text(payment.notes.isEmpty ? "--" : payment.notes)
                     }
                     TableColumn("Actions") { payment in
-                        Button(action: { store.deletePayment(id: payment.id) }) {
-                            Image(systemName: "trash")
-                                .foregroundColor(.red)
+                        HStack(spacing: 10) {
+                            Button(action: { editingPayment = payment }) {
+                                Image(systemName: "pencil")
+                                    .foregroundColor(.blue)
+                            }
+                            .buttonStyle(.plain)
+                            
+                            Button(action: { store.deletePayment(id: payment.id) }) {
+                                Image(systemName: "trash")
+                                    .foregroundColor(.red)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
                 .frame(height: 250)
             }
+        }
+        .sheet(isPresented: $showingRecordPayment) {
+            AddPaymentSheet(initialStudentId: student.id)
+        }
+        .sheet(item: $editingPayment) { payment in
+            EditPaymentSheet(payment: payment)
         }
     }
 }
@@ -618,6 +723,7 @@ struct EditStudentSheet: View {
     @State private var notes: String
     @State private var isActive: Bool
     @State private var validationError: String? = nil
+    @State private var showingDeleteConfirmation = false
     
     init(student: Student) {
         self.student = student
@@ -665,13 +771,13 @@ struct EditStudentSheet: View {
                 TextField("Schedule Time", text: $scheduleNotes)
                 TextField("Focus Notes", text: $notes)
             }
-            .formStyle(.grouped)
-            .frame(width: 450, height: 350)
+            .formStyle(.columns)
+            .padding(.horizontal)
+            .frame(width: 460, height: 340)
             
             HStack {
                 Button("Delete Student", role: .destructive) {
-                    store.deleteStudent(id: student.id)
-                    dismiss()
+                    showingDeleteConfirmation = true
                 }
                 .buttonStyle(.bordered)
                 
@@ -710,6 +816,15 @@ struct EditStudentSheet: View {
                 .buttonStyle(.borderedProminent)
             }
             .padding([.horizontal, .bottom])
+        }
+        .alert("Erase Student Profile?", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Permanently Delete", role: .destructive) {
+                store.deleteStudent(id: student.id)
+                dismiss()
+            }
+        } message: {
+            Text("This action is permanent and cannot be undone. All offline tutoring records, lesson logs, scheduled classes, pending assignments, and transaction logs for this student will be deleted.")
         }
     }
 }
@@ -754,8 +869,9 @@ struct AddProgressLogSheet: View {
                 TextField("Homework Assigned", text: $homework)
                 TextField("Session notes", text: $notes)
             }
-            .formStyle(.grouped)
-            .frame(width: 400, height: 220)
+            .formStyle(.columns)
+            .padding(.horizontal)
+            .frame(width: 420, height: 200)
             
             HStack {
                 Button("Cancel") {
@@ -807,8 +923,9 @@ struct AddAssignmentSheetForStudent: View {
                 TextField("Description (Optional)", text: $description)
                 DatePicker("Due Date", selection: $dueDate, displayedComponents: [.date])
             }
-            .formStyle(.grouped)
-            .frame(width: 400, height: 160)
+            .formStyle(.columns)
+            .padding(.horizontal)
+            .frame(width: 420, height: 150)
             
             HStack {
                 Button("Cancel") {
@@ -831,3 +948,86 @@ struct AddAssignmentSheetForStudent: View {
         }
     }
 }
+
+struct EditProgressLogSheet: View {
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var store: StorageManager
+    let log: ProgressLog
+    
+    @State private var topicCovered: String
+    @State private var understandingLevel: Int
+    @State private var homework: String
+    @State private var notes: String
+    @State private var date: Date
+    @State private var validationError: String? = nil
+    
+    init(log: ProgressLog) {
+        self.log = log
+        _topicCovered = State(initialValue: log.topicCovered)
+        _understandingLevel = State(initialValue: log.understandingLevel)
+        _homework = State(initialValue: log.homeworkAssigned)
+        _notes = State(initialValue: log.notes)
+        _date = State(initialValue: log.date)
+    }
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Edit Student Session Log")
+                .font(.headline)
+                .padding(.top)
+            
+            if let error = validationError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding(.horizontal)
+            }
+            
+            Form {
+                DatePicker("Session Date", selection: $date, displayedComponents: [.date])
+                TextField("Topic Covered", text: $topicCovered)
+                
+                Picker("Understanding", selection: $understandingLevel) {
+                    Text("1 - Struggling").tag(1)
+                    Text("2 - Basic").tag(2)
+                    Text("3 - Satisfactory").tag(3)
+                    Text("4 - Good").tag(4)
+                    Text("5 - Excellent").tag(5)
+                }
+                
+                TextField("Homework Assigned", text: $homework)
+                TextField("Session notes", text: $notes)
+            }
+            .formStyle(.columns)
+            .padding(.horizontal)
+            .frame(width: 420, height: 200)
+            
+            HStack {
+                Button("Cancel") {
+                    dismiss()
+                }
+                Spacer()
+                Button("Save Changes") {
+                    let trimmedTopic = topicCovered.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmedTopic.isEmpty {
+                        validationError = "Topic covered is required."
+                        return
+                    }
+                    
+                    var updated = log
+                    updated.date = date
+                    updated.topicCovered = trimmedTopic
+                    updated.understandingLevel = understandingLevel
+                    updated.homeworkAssigned = homework
+                    updated.notes = notes
+                    
+                    store.updateProgressLog(updated)
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding([.horizontal, .bottom])
+        }
+    }
+}
+

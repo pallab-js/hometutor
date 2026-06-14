@@ -4,6 +4,7 @@ public struct AssignmentViews: View {
     @EnvironmentObject var store: StorageManager
     @State private var showingAddAssignment = false
     @State private var statusFilter: AssignmentStatusFilter = .all
+    @State private var editingAssignment: Assignment? = nil
     
     public init() {}
     
@@ -137,6 +138,12 @@ public struct AssignmentViews: View {
                                         }
                                     }
                                     
+                                    Button(action: { editingAssignment = assignment }) {
+                                        Image(systemName: "pencil")
+                                            .foregroundColor(.blue)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
                                     Button(action: { store.deleteAssignment(id: assignment.id) }) {
                                         Image(systemName: "trash")
                                             .foregroundColor(.red)
@@ -147,6 +154,11 @@ public struct AssignmentViews: View {
                             .padding()
                             .background(Color(NSColor.controlBackgroundColor))
                             .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                            )
+                            .shadow(color: Color.black.opacity(0.01), radius: 3, x: 0, y: 1)
                         }
                     }
                 }
@@ -155,6 +167,9 @@ public struct AssignmentViews: View {
         }
         .sheet(isPresented: $showingAddAssignment) {
             AddAssignmentSheet()
+        }
+        .sheet(item: $editingAssignment) { assignment in
+            EditAssignmentSheet(assignment: assignment)
         }
     }
 }
@@ -179,6 +194,126 @@ struct StatusBadge: View {
         case .pending: return .orange
         case .submitted: return .blue
         case .graded: return .green
+        }
+    }
+}
+
+struct EditAssignmentSheet: View {
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var store: StorageManager
+    let assignment: Assignment
+    
+    @State private var selectedStudentId: UUID
+    @State private var title: String
+    @State private var description: String
+    @State private var dueDate: Date
+    @State private var status: AssignmentStatus
+    @State private var scoreString: String
+    @State private var maxScoreString: String
+    @State private var notes: String
+    @State private var validationError: String? = nil
+    
+    init(assignment: Assignment) {
+        self.assignment = assignment
+        _selectedStudentId = State(initialValue: assignment.studentId)
+        _title = State(initialValue: assignment.title)
+        _description = State(initialValue: assignment.description)
+        _dueDate = State(initialValue: assignment.dueDate)
+        _status = State(initialValue: assignment.status)
+        _scoreString = State(initialValue: String(assignment.score))
+        _maxScoreString = State(initialValue: String(assignment.maxScore))
+        _notes = State(initialValue: assignment.notes)
+    }
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Edit Assignment")
+                .font(.headline)
+                .padding(.top)
+            
+            if let error = validationError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding(.horizontal)
+            }
+            
+            Form {
+                Picker("Student", selection: $selectedStudentId) {
+                    ForEach(store.students) { student in
+                        Text(student.name).tag(student.id)
+                    }
+                }
+                
+                TextField("Assignment Title", text: $title)
+                TextField("Description", text: $description)
+                DatePicker("Due Date", selection: $dueDate, displayedComponents: [.date])
+                
+                Picker("Status", selection: $status) {
+                    ForEach(AssignmentStatus.allCases) { statusOption in
+                        Text(statusOption.rawValue).tag(statusOption)
+                    }
+                }
+                .pickerStyle(.segmented)
+                
+                if status == .graded {
+                    TextField("Score", text: $scoreString)
+                    TextField("Max Score", text: $maxScoreString)
+                    TextField("Tutor Feedback", text: $notes)
+                }
+            }
+            .formStyle(.columns)
+            .padding(.horizontal)
+            .frame(width: 460, height: status == .graded ? 280 : 200)
+            
+            HStack {
+                Button("Cancel") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+                
+                Spacer()
+                
+                Button("Save Changes") {
+                    let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmedTitle.isEmpty {
+                        validationError = "Assignment title is required."
+                        return
+                    }
+                    
+                    var scoreVal = Double(scoreString) ?? 0.0
+                    var maxScoreVal = Double(maxScoreString) ?? 100.0
+                    
+                    if status == .graded {
+                        guard let s = Double(scoreString), s >= 0 else {
+                            validationError = "Please enter a valid positive score."
+                            return
+                        }
+                        guard let m = Double(maxScoreString), m > 0 else {
+                            validationError = "Please enter a valid positive max score."
+                            return
+                        }
+                        scoreVal = s
+                        maxScoreVal = m
+                    }
+                    
+                    var updated = assignment
+                    updated.studentId = selectedStudentId
+                    updated.title = trimmedTitle
+                    updated.description = description
+                    updated.dueDate = dueDate
+                    updated.status = status
+                    updated.score = scoreVal
+                    updated.maxScore = maxScoreVal
+                    updated.notes = notes
+                    
+                    store.updateAssignment(updated)
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+            }
+            .padding([.horizontal, .bottom])
         }
     }
 }

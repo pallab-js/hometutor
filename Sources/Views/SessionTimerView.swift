@@ -4,14 +4,12 @@ public struct SessionTimerView: View {
     @EnvironmentObject var store: StorageManager
     
     @State private var selectedStudentId: UUID = UUID()
-    @State private var elapsedSeconds: Int = 0
-    @State private var isRunning = false
-    @State private var timer: Timer? = nil
     
     @State private var showingBillingSheet = false
     @State private var billingAmount: Double = 0.0
     @State private var billingHours: Double = 0.0
     @State private var billingNotes: String = ""
+    @State private var isPulsing = false
     
     public init() {}
     
@@ -21,19 +19,24 @@ public struct SessionTimerView: View {
     }
     
     private var selectedStudent: Student? {
-        store.students.first(where: { $0.id == selectedStudentId })
+        if store.isTimerRunning {
+            return store.students.first(where: { $0.id == store.activeTimerStudentId })
+        } else {
+            return store.students.first(where: { $0.id == selectedStudentId })
+        }
     }
     
     private var liveEarnings: Double {
         guard let student = selectedStudent else { return 0.0 }
-        let hours = Double(elapsedSeconds) / 3600.0
+        let hours = Double(store.timerElapsedSeconds) / 3600.0
         return hours * student.rateValue
     }
     
     private var timeString: String {
-        let hours = elapsedSeconds / 3600
-        let minutes = (elapsedSeconds % 3600) / 60
-        let seconds = elapsedSeconds % 60
+        let elapsed = store.timerElapsedSeconds
+        let hours = elapsed / 3600
+        let minutes = (elapsed % 3600) / 60
+        let seconds = elapsed % 60
         return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
     }
     
@@ -68,20 +71,41 @@ public struct SessionTimerView: View {
                     }
                     .pickerStyle(.menu)
                     .frame(width: 320)
-                    .disabled(isRunning)
+                    .disabled(store.isTimerRunning)
+                }
+                
+                // Status Indicator
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(store.isTimerRunning ? Color.green : Color.secondary)
+                        .frame(width: 8, height: 8)
+                        .scaleEffect(store.isTimerRunning && isPulsing ? 1.3 : 1.0)
+                        .opacity(store.isTimerRunning && isPulsing ? 1.0 : 0.6)
+                        .animation(store.isTimerRunning ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default, value: isPulsing)
+                    Text(store.isTimerRunning ? "SESSION IN PROGRESS" : "SESSION PAUSED")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(store.isTimerRunning ? .green : .secondary)
+                        .tracking(1.5)
+                }
+                .onAppear {
+                    isPulsing = true
                 }
                 
                 // Clock widget
                 Text(timeString)
                     .font(.system(size: 72, weight: .semibold, design: .monospaced))
-                    .foregroundColor(isRunning ? .blue : .primary)
-                    .padding()
-                    .background(Color(NSColor.controlBackgroundColor))
+                    .foregroundColor(store.isTimerRunning ? .green : .primary)
+                    .padding(.vertical, 20)
+                    .padding(.horizontal, 40)
+                    .background(Color.primary.opacity(0.02))
                     .cornerRadius(16)
-                    .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 4)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.primary.opacity(0.04), lineWidth: 1)
+                    )
                 
                 // Live Earnings Indicator
-                if selectedStudentId != UUID(), let student = selectedStudent {
+                if (store.isTimerRunning ? store.activeTimerStudentId : selectedStudentId) != UUID(), let student = selectedStudent {
                     VStack(spacing: 4) {
                         Text("ACCUMULATED FEES")
                             .font(.caption2)
@@ -103,16 +127,16 @@ public struct SessionTimerView: View {
                     // Start / Pause
                     Button(action: toggleTimer) {
                         Label(
-                            isRunning ? "Pause Session" : "Start Session",
-                            systemImage: isRunning ? "pause.fill" : "play.fill"
+                            store.isTimerRunning ? "Pause Session" : "Start Session",
+                            systemImage: store.isTimerRunning ? "pause.fill" : "play.fill"
                         )
                         .font(.headline)
                         .padding(.vertical, 10)
                         .padding(.horizontal, 20)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(isRunning ? .orange : .blue)
-                    .disabled(selectedStudentId == UUID())
+                    .tint(store.isTimerRunning ? .orange : .blue)
+                    .disabled(selectedStudentId == UUID() && !store.isTimerRunning)
                     
                     // Reset
                     Button(action: resetTimer) {
@@ -122,7 +146,7 @@ public struct SessionTimerView: View {
                             .padding(.horizontal, 20)
                     }
                     .buttonStyle(.bordered)
-                    .disabled(elapsedSeconds == 0 || isRunning)
+                    .disabled(store.timerElapsedSeconds == 0 || store.isTimerRunning)
                     
                     // Stop & Bill
                     Button(action: stopAndBillSession) {
@@ -133,18 +157,27 @@ public struct SessionTimerView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.green)
-                    .disabled(elapsedSeconds == 0 || selectedStudentId == UUID())
+                    .disabled(store.timerElapsedSeconds == 0)
                 }
             }
             .padding(40)
-            .background(Color(NSColor.windowBackgroundColor))
+            .background(Color(NSColor.controlBackgroundColor))
             .cornerRadius(20)
-            .shadow(color: Color.black.opacity(0.04), radius: 10, x: 0, y: 5)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.02), radius: 10, x: 0, y: 4)
             
             Spacer()
         }
         .onAppear {
-            if hourlyActiveStudents.isEmpty == false && selectedStudentId == UUID() {
+            if let preselected = store.preselectedTimerStudentId {
+                selectedStudentId = preselected
+                store.preselectedTimerStudentId = nil // Clear it
+            } else if store.isTimerRunning, let activeId = store.activeTimerStudentId {
+                selectedStudentId = activeId
+            } else if hourlyActiveStudents.isEmpty == false && (selectedStudentId == UUID() || !hourlyActiveStudents.contains(where: { $0.id == selectedStudentId })) {
                 selectedStudentId = hourlyActiveStudents.first?.id ?? UUID()
             }
         }
@@ -160,44 +193,35 @@ public struct SessionTimerView: View {
     
     // Timer Mechanics
     private func toggleTimer() {
-        if isRunning {
-            isRunning = false
-            timer?.invalidate()
-            timer = nil
+        if store.isTimerRunning {
+            store.pauseTimer()
         } else {
-            isRunning = true
-            timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-                Task { @MainActor in
-                    elapsedSeconds += 1
-                }
-            }
+            store.startTimer(studentId: selectedStudentId)
         }
     }
     
     private func resetTimer() {
-        isRunning = false
-        timer?.invalidate()
-        timer = nil
-        elapsedSeconds = 0
+        store.resetTimer()
     }
     
     private func stopAndBillSession() {
-        // Pause timer if running
-        if isRunning {
-            toggleTimer()
+        if store.isTimerRunning {
+            store.pauseTimer()
         }
         
         guard let student = selectedStudent else { return }
         
-        let calculatedHours = Double(elapsedSeconds) / 3600.0
+        let calculatedHours = Double(store.timerElapsedSeconds) / 3600.0
         billingHours = calculatedHours
         billingAmount = calculatedHours * student.rateValue
         
-        let roundedMinutes = elapsedSeconds / 60
+        let roundedMinutes = store.timerElapsedSeconds / 60
         billingNotes = "Automated session timer log: \(roundedMinutes) minutes"
         
+        let currentStudentId = student.id
         showingBillingSheet = true
-        resetTimer()
+        store.resetTimer()
+        selectedStudentId = currentStudentId
     }
 }
 
@@ -246,8 +270,9 @@ struct AddPaymentSheetWithPreFill: View {
                 DatePicker("Session Date", selection: $date, displayedComponents: [.date])
                 TextField("Notes", text: $notes)
             }
-            .formStyle(.grouped)
-            .frame(width: 400, height: 220)
+            .formStyle(.columns)
+            .padding(.horizontal)
+            .frame(width: 420, height: 200)
             
             HStack {
                 Button("Cancel") {

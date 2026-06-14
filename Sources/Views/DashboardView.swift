@@ -176,10 +176,14 @@ struct DashboardView: View {
                         .padding(.vertical, 5)
                     }
                     .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(NSColor.windowBackgroundColor))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .background(Color(NSColor.controlBackgroundColor))
                     .cornerRadius(12)
-                    .shadow(color: Color.black.opacity(0.04), radius: 5, x: 0, y: 2)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.02), radius: 5, x: 0, y: 1)
                     
                     // Revenue Projection Card
                     VStack(alignment: .leading, spacing: 10) {
@@ -213,11 +217,16 @@ struct DashboardView: View {
                         .font(.subheadline)
                     }
                     .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(NSColor.windowBackgroundColor))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .background(Color(NSColor.controlBackgroundColor))
                     .cornerRadius(12)
-                    .shadow(color: Color.black.opacity(0.04), radius: 5, x: 0, y: 2)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.02), radius: 5, x: 0, y: 1)
                 }
+                .fixedSize(horizontal: false, vertical: true)
                 
                 // Graphs and Charts Row
                 HStack(spacing: 20) {
@@ -249,9 +258,14 @@ struct DashboardView: View {
                         }
                     }
                     .padding()
-                    .background(Color(NSColor.windowBackgroundColor))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .background(Color(NSColor.controlBackgroundColor))
                     .cornerRadius(12)
-                    .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.02), radius: 5, x: 0, y: 1)
                     
                     // Chart 2: Student Share
                     VStack(alignment: .leading, spacing: 12) {
@@ -281,10 +295,16 @@ struct DashboardView: View {
                         }
                     }
                     .padding()
-                    .background(Color(NSColor.windowBackgroundColor))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .background(Color(NSColor.controlBackgroundColor))
                     .cornerRadius(12)
-                    .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.02), radius: 5, x: 0, y: 1)
                 }
+                .fixedSize(horizontal: false, vertical: true)
                 
                 // Today's Agenda & Recent Activity
                 HStack(alignment: .top, spacing: 20) {
@@ -354,10 +374,14 @@ struct DashboardView: View {
                         }
                     }
                     .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(Color(NSColor.windowBackgroundColor))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .background(Color(NSColor.controlBackgroundColor))
                     .cornerRadius(12)
-                    .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.02), radius: 5, x: 0, y: 1)
                     
                     // Recent Payments Log
                     VStack(alignment: .leading, spacing: 12) {
@@ -401,11 +425,16 @@ struct DashboardView: View {
                         }
                     }
                     .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(Color(NSColor.windowBackgroundColor))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .background(Color(NSColor.controlBackgroundColor))
                     .cornerRadius(12)
-                    .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.02), radius: 5, x: 0, y: 1)
                 }
+                .fixedSize(horizontal: false, vertical: true)
             }
             .padding(25)
         }
@@ -430,35 +459,51 @@ struct MetricCard: View {
     let icon: String
     let color: Color
     
+    @State private var isHovered = false
+    
     var body: some View {
         HStack(spacing: 15) {
             Image(systemName: icon)
-                .font(.system(size: 24))
+                .font(.system(size: 22))
                 .foregroundColor(color)
-                .frame(width: 50, height: 50)
+                .frame(width: 44, height: 44)
                 .background(color.opacity(0.1))
                 .clipShape(RoundedRectangle(cornerRadius: 10))
             
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.caption)
                     .fontWeight(.semibold)
                     .foregroundColor(.secondary)
+                    .lineLimit(1)
                 
                 Text(value)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundColor(.primary)
+                    .lineLimit(1)
                 
                 Text(subtitle)
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
+                    .lineLimit(1)
             }
             Spacer()
         }
-        .padding()
-        .background(Color(NSColor.windowBackgroundColor))
+        .padding(.horizontal, 16)
+        .frame(height: 80)
+        .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 1)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(isHovered ? 0.04 : 0.02), radius: isHovered ? 8 : 4, x: 0, y: isHovered ? 3 : 1)
+        .scaleEffect(isHovered ? 1.015 : 1.0)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hovering
+            }
+        }
     }
 }
 
@@ -467,12 +512,19 @@ struct AddPaymentSheet: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var store: StorageManager
     
+    var initialStudentId: UUID? = nil
+    
     @State private var selectedStudentId = UUID()
     @State private var amountString = ""
     @State private var hoursString = ""
     @State private var notes = ""
     @State private var date = Date()
     @State private var validationError: String? = nil
+    
+    init(initialStudentId: UUID? = nil) {
+        self.initialStudentId = initialStudentId
+        _selectedStudentId = State(initialValue: initialStudentId ?? UUID())
+    }
     
     var body: some View {
         VStack(spacing: 20) {
@@ -500,8 +552,9 @@ struct AddPaymentSheet: View {
                 DatePicker("Date", selection: $date, displayedComponents: [.date])
                 TextField("Notes", text: $notes)
             }
-            .formStyle(.grouped)
-            .frame(width: 400, height: 220)
+            .formStyle(.columns)
+            .padding(.horizontal)
+            .frame(width: 420, height: 200)
             
             HStack {
                 Button("Cancel") {
@@ -536,7 +589,7 @@ struct AddPaymentSheet: View {
             .padding([.horizontal, .bottom])
         }
         .onAppear {
-            if let firstStudent = store.students.first {
+            if selectedStudentId == UUID(), let firstStudent = store.students.first {
                 selectedStudentId = firstStudent.id
             }
         }
@@ -589,8 +642,9 @@ struct AddStudentSheet: View {
                 TextField("Schedule Time", text: $scheduleNotes, prompt: Text("e.g. Mon & Wed 4 PM"))
                 TextField("Notes / Focus Area", text: $notes)
             }
-            .formStyle(.grouped)
-            .frame(width: 450, height: 350)
+            .formStyle(.columns)
+            .padding(.horizontal)
+            .frame(width: 460, height: 340)
             
             HStack {
                 Button("Cancel") {
@@ -658,8 +712,9 @@ struct AddAssignmentSheet: View {
                 TextField("Description (Optional)", text: $description)
                 DatePicker("Due Date", selection: $dueDate, displayedComponents: [.date])
             }
-            .formStyle(.grouped)
-            .frame(width: 400, height: 200)
+            .formStyle(.columns)
+            .padding(.horizontal)
+            .frame(width: 420, height: 180)
             
             HStack {
                 Button("Cancel") {

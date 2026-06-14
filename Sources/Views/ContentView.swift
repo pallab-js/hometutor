@@ -22,41 +22,34 @@ public struct ContentView: View {
                 Section("Home") {
                     NavigationLink(value: SidebarSelection.dashboard) {
                         Label("Dashboard", systemImage: "chart.bar.doc.horizontal.fill")
-                            .foregroundColor(.blue)
                     }
                 }
                 
                 Section("Management") {
                     NavigationLink(value: SidebarSelection.students) {
                         Label("Students", systemImage: "person.2.fill")
-                            .foregroundColor(.purple)
                     }
                     
                     NavigationLink(value: SidebarSelection.sessionTimer) {
                         Label("Session Timer", systemImage: "timer")
-                            .foregroundColor(.cyan)
                     }
                     
                     NavigationLink(value: SidebarSelection.payments) {
                         Label("Earnings", systemImage: "indianrupeesign.circle.fill")
-                            .foregroundColor(.green)
                     }
                     
                     NavigationLink(value: SidebarSelection.schedule) {
                         Label("Schedule", systemImage: "calendar")
-                            .foregroundColor(.orange)
                     }
                     
                     NavigationLink(value: SidebarSelection.assignments) {
                         Label("Assignments", systemImage: "book.closed.fill")
-                            .foregroundColor(.red)
                     }
                 }
                 
                 Section("Application") {
                     NavigationLink(value: SidebarSelection.settings) {
                         Label("Settings", systemImage: "gearshape.fill")
-                            .foregroundColor(.secondary)
                     }
                 }
             }
@@ -72,7 +65,9 @@ public struct ContentView: View {
                         self.selection = .students
                     })
                 case .students:
-                    StudentListView(selectedStudentId: $selectedStudentId)
+                    StudentListView(selectedStudentId: $selectedStudentId, onNavigateToTimer: {
+                        self.selection = .sessionTimer
+                    })
                 case .sessionTimer:
                     SessionTimerView()
                 case .payments:

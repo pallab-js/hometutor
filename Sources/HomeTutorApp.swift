@@ -24,6 +24,11 @@ struct HomeTutorApp: App {
             ContentView()
                 .environmentObject(storageManager)
                 .frame(minWidth: 1200, minHeight: 750)
+                .onAppear {
+                    if storageManager.settings.remindersEnabled {
+                        NotificationManager.shared.requestAuthorization()
+                    }
+                }
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unifiedCompact)
