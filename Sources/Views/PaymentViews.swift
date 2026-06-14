@@ -68,7 +68,7 @@ public struct PaymentViews: View {
                         Text("TOTAL REVENUE")
                             .font(.caption2)
                             .foregroundColor(.secondary)
-                        Text(String(format: "₹%.2f", totalFilteredRevenue))
+                        Text(store.formatCurrency(totalFilteredRevenue))
                             .font(.title3)
                             .fontWeight(.bold)
                             .foregroundColor(.green)
@@ -117,7 +117,7 @@ public struct PaymentViews: View {
                         }
                         
                         TableColumn("Earnings") { payment in
-                            Text(String(format: "₹%.2f", payment.amount))
+                            Text(store.formatCurrency(payment.amount))
                                 .fontWeight(.bold)
                                 .foregroundColor(.green)
                         }

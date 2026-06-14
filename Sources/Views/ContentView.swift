@@ -6,11 +6,13 @@ public enum SidebarSelection: Hashable {
     case payments
     case schedule
     case assignments
+    case sessionTimer
     case settings
 }
 
 public struct ContentView: View {
     @State private var selection: SidebarSelection = .dashboard
+    @State private var selectedStudentId: UUID? = nil
     
     public init() {}
     
@@ -30,8 +32,13 @@ public struct ContentView: View {
                             .foregroundColor(.purple)
                     }
                     
+                    NavigationLink(value: SidebarSelection.sessionTimer) {
+                        Label("Session Timer", systemImage: "timer")
+                            .foregroundColor(.cyan)
+                    }
+                    
                     NavigationLink(value: SidebarSelection.payments) {
-                        Label("Earnings", systemImage: "indianrupeesign.circle.fill") // Using standard Indian Rupee or generic currency
+                        Label("Earnings", systemImage: "indianrupeesign.circle.fill")
                             .foregroundColor(.green)
                     }
                     
@@ -60,9 +67,14 @@ public struct ContentView: View {
             Group {
                 switch selection {
                 case .dashboard:
-                    DashboardView()
+                    DashboardView(onNavigateToStudent: { studentId in
+                        self.selectedStudentId = studentId
+                        self.selection = .students
+                    })
                 case .students:
-                    StudentListView()
+                    StudentListView(selectedStudentId: $selectedStudentId)
+                case .sessionTimer:
+                    SessionTimerView()
                 case .payments:
                     PaymentViews()
                 case .schedule:

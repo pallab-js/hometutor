@@ -1,13 +1,13 @@
 import Foundation
 
-public enum RateType: String, Codable, CaseIterable, Identifiable {
+public enum RateType: String, Codable, CaseIterable, Identifiable, Sendable {
     case hourly = "Hourly"
     case monthly = "Monthly"
     
     public var id: String { self.rawValue }
 }
 
-public struct Student: Codable, Identifiable, Hashable {
+public struct Student: Codable, Identifiable, Hashable, Sendable {
     public var id: UUID
     public var name: String
     public var subject: String
@@ -50,7 +50,7 @@ public struct Student: Codable, Identifiable, Hashable {
     }
 }
 
-public struct Payment: Codable, Identifiable, Hashable {
+public struct Payment: Codable, Identifiable, Hashable, Sendable {
     public var id: UUID
     public var studentId: UUID
     public var amount: Double
@@ -75,7 +75,7 @@ public struct Payment: Codable, Identifiable, Hashable {
     }
 }
 
-public enum AssignmentStatus: String, Codable, CaseIterable, Identifiable {
+public enum AssignmentStatus: String, Codable, CaseIterable, Identifiable, Sendable {
     case pending = "Pending"
     case submitted = "Submitted"
     case graded = "Graded"
@@ -83,7 +83,7 @@ public enum AssignmentStatus: String, Codable, CaseIterable, Identifiable {
     public var id: String { self.rawValue }
 }
 
-public struct Assignment: Codable, Identifiable, Hashable {
+public struct Assignment: Codable, Identifiable, Hashable, Sendable {
     public var id: UUID
     public var studentId: UUID
     public var title: String
@@ -120,7 +120,7 @@ public struct Assignment: Codable, Identifiable, Hashable {
     }
 }
 
-public struct ProgressLog: Codable, Identifiable, Hashable {
+public struct ProgressLog: Codable, Identifiable, Hashable, Sendable {
     public var id: UUID
     public var studentId: UUID
     public var date: Date
@@ -148,7 +148,7 @@ public struct ProgressLog: Codable, Identifiable, Hashable {
     }
 }
 
-public struct ScheduleSession: Codable, Identifiable, Hashable {
+public struct ScheduleSession: Codable, Identifiable, Hashable, Sendable {
     public var id: UUID
     public var studentId: UUID
     public var dayOfWeek: Int // 1 = Sunday, 2 = Monday, ..., 7 = Saturday
@@ -170,5 +170,21 @@ public struct ScheduleSession: Codable, Identifiable, Hashable {
         self.startTime = startTime
         self.endTime = endTime
         self.notes = notes
+    }
+}
+
+public struct AppSettings: Codable, Hashable, Sendable {
+    public var currencyCode: String
+    public var monthlyTargetEarnings: Double
+    public var remindersEnabled: Bool
+    
+    public init(
+        currencyCode: String = "INR",
+        monthlyTargetEarnings: Double = 50000.0,
+        remindersEnabled: Bool = true
+    ) {
+        self.currencyCode = currencyCode
+        self.monthlyTargetEarnings = monthlyTargetEarnings
+        self.remindersEnabled = remindersEnabled
     }
 }

@@ -10,6 +10,7 @@ public class StorageManager: ObservableObject {
     @Published public var assignments: [Assignment] = []
     @Published public var progressLogs: [ProgressLog] = []
     @Published public var scheduleSessions: [ScheduleSession] = []
+    @Published public var settings = AppSettings()
     
     private let fileManager = FileManager.default
     private var baseDirectory: URL
@@ -36,6 +37,7 @@ public class StorageManager: ObservableObject {
     private var assignmentsURL: URL { baseDirectory.appendingPathComponent("assignments.json") }
     private var progressURL: URL { baseDirectory.appendingPathComponent("progress.json") }
     private var scheduleURL: URL { baseDirectory.appendingPathComponent("schedule.json") }
+    private var settingsURL: URL { baseDirectory.appendingPathComponent("settings.json") }
     
     // MARK: - Save/Load Implementation
     private func loadAllData() {
@@ -44,6 +46,8 @@ public class StorageManager: ObservableObject {
         assignments = loadJSON(from: assignmentsURL) ?? []
         progressLogs = loadJSON(from: progressURL) ?? []
         scheduleSessions = loadJSON(from: scheduleURL) ?? []
+        settings = loadJSON(from: settingsURL) ?? AppSettings()
+        syncNotifications()
     }
     
     private func saveJSON<T: Encodable>(_ data: T, to url: URL) {
@@ -76,18 +80,21 @@ public class StorageManager: ObservableObject {
         saveJSON(assignments, to: assignmentsURL)
         saveJSON(progressLogs, to: progressURL)
         saveJSON(scheduleSessions, to: scheduleURL)
+        saveJSON(settings, to: settingsURL)
     }
     
     // MARK: - Student Operations
     public func addStudent(_ student: Student) {
         students.append(student)
         saveAllData()
+        syncNotifications()
     }
     
     public func updateStudent(_ student: Student) {
         if let index = students.firstIndex(where: { $0.id == student.id }) {
             students[index] = student
             saveAllData()
+            syncNotifications()
         }
     }
     
@@ -98,6 +105,7 @@ public class StorageManager: ObservableObject {
         progressLogs.removeAll { $0.studentId == id }
         scheduleSessions.removeAll { $0.studentId == id }
         saveAllData()
+        syncNotifications()
     }
     
     // MARK: - Payment Operations
@@ -165,18 +173,21 @@ public class StorageManager: ObservableObject {
     public func addScheduleSession(_ session: ScheduleSession) {
         scheduleSessions.append(session)
         saveAllData()
+        syncNotifications()
     }
     
     public func updateScheduleSession(_ session: ScheduleSession) {
         if let index = scheduleSessions.firstIndex(where: { $0.id == session.id }) {
             scheduleSessions[index] = session
             saveAllData()
+            syncNotifications()
         }
     }
     
     public func deleteScheduleSession(id: UUID) {
         scheduleSessions.removeAll { $0.id == id }
         saveAllData()
+        syncNotifications()
     }
     
     // MARK: - Database Actions
@@ -192,6 +203,71 @@ public class StorageManager: ObservableObject {
     public func resetToSampleData() {
         clearAllData()
         loadSampleData()
+        syncNotifications()
+    }
+    
+    public func updateSettings(_ settings: AppSettings) {
+        self.settings = settings
+        saveAllData()
+        syncNotifications()
+    }
+    
+    public func syncNotifications() {
+        NotificationManager.shared.syncSessionNotifications(
+            students: students,
+            scheduleSessions: scheduleSessions,
+            enabled: settings.remindersEnabled
+        )
+    }
+    
+    public func formatCurrency(_ amount: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = settings.currencyCode
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 2
+        return formatter.string(from: NSNumber(value: amount)) ?? "\(settings.currencyCode) \(amount)"
+    }
+    
+    public var projectedEarningsRemaining: Double {
+        let calendar = Calendar.current
+        let today = Date()
+        guard let range = calendar.range(of: .day, in: .month, for: today),
+              let currentDay = calendar.dateComponents([.day], from: today).day else { return 0 }
+        
+        let year = calendar.component(.year, from: today)
+        let month = calendar.component(.month, from: today)
+        
+        var totalProjected = 0.0
+        
+        // Loop over remaining days in the month
+        for day in (currentDay + 1)...range.count {
+            var components = DateComponents()
+            components.year = year
+            components.month = month
+            components.day = day
+            guard let date = calendar.date(from: components) else { continue }
+            let weekday = calendar.component(.weekday, from: date)
+            
+            let daySessions = scheduleSessions.filter { $0.dayOfWeek == weekday }
+            for session in daySessions {
+                guard let student = students.first(where: { $0.id == session.studentId }), student.isActive else { continue }
+                if student.rateType == .hourly {
+                    let duration = sessionDurationHours(start: session.startTime, end: session.endTime)
+                    totalProjected += duration * student.rateValue
+                }
+            }
+        }
+        return totalProjected
+    }
+    
+    private func sessionDurationHours(start: String, end: String) -> Double {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        guard let startDate = formatter.date(from: start),
+              let endDate = formatter.date(from: end) else { return 0 }
+        let diff = endDate.timeIntervalSince(startDate)
+        return max(0, diff / 3600.0)
     }
     
     public func exportToCSV() -> String? {

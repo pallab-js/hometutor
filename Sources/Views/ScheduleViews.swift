@@ -156,6 +156,7 @@ struct AddScheduleSessionSheet: View {
     @State private var startTimeDate = Calendar.current.date(bySettingHour: 16, minute: 0, second: 0, of: Date()) ?? Date()
     @State private var endTimeDate = Calendar.current.date(bySettingHour: 17, minute: 30, second: 0, of: Date()) ?? Date()
     @State private var notes = ""
+    @State private var validationError: String? = nil
     
     private let days = [
         (2, "Monday"),
@@ -172,6 +173,13 @@ struct AddScheduleSessionSheet: View {
             Text("Schedule Tutoring Session")
                 .font(.headline)
                 .padding(.top)
+            
+            if let error = validationError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding(.horizontal)
+            }
             
             Form {
                 Picker("Student", selection: $selectedStudentId) {
@@ -204,7 +212,15 @@ struct AddScheduleSessionSheet: View {
                 Spacer()
                 
                 Button("Schedule Class") {
-                    guard selectedStudentId != UUID() else { return }
+                    if selectedStudentId == UUID() {
+                        validationError = "Please select a student."
+                        return
+                    }
+                    
+                    if endTimeDate <= startTimeDate {
+                        validationError = "End time must be after start time."
+                        return
+                    }
                     
                     let formatter = DateFormatter()
                     formatter.dateFormat = "HH:mm"
@@ -224,7 +240,6 @@ struct AddScheduleSessionSheet: View {
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(selectedStudentId == UUID())
                 .keyboardShortcut(.defaultAction)
             }
             .padding([.horizontal, .bottom])

@@ -3,10 +3,12 @@ import SwiftUI
 public struct StudentListView: View {
     @EnvironmentObject var store: StorageManager
     @State private var searchText = ""
-    @State private var selectedStudentId: UUID?
+    @Binding private var selectedStudentId: UUID?
     @State private var showingAddStudent = false
     
-    public init() {}
+    public init(selectedStudentId: Binding<UUID?>) {
+        self._selectedStudentId = selectedStudentId
+    }
     
     private var filteredStudents: [Student] {
         if searchText.isEmpty {
@@ -20,37 +22,72 @@ public struct StudentListView: View {
         NavigationSplitView {
             // Sidebar List of Students
             List(selection: $selectedStudentId) {
-                ForEach(filteredStudents) { student in
-                    NavigationLink(value: student.id) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(student.name)
-                                    .font(.headline)
-                                Text(student.subject)
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Spacer()
-                            
-                            VStack(alignment: .trailing) {
-                                Text(student.grade)
-                                    .font(.caption2)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.blue.opacity(0.1))
-                                    .foregroundColor(.blue)
-                                    .cornerRadius(4)
-                                
-                                if !student.isActive {
-                                    Text("Inactive")
-                                        .font(.system(size: 8, weight: .bold))
-                                        .foregroundColor(.red)
+                let activeFiltered = filteredStudents.filter { $0.isActive }
+                let archivedFiltered = filteredStudents.filter { !$0.isActive }
+                
+                if !activeFiltered.isEmpty {
+                    Section("Active Students") {
+                        ForEach(activeFiltered) { student in
+                            NavigationLink(value: student.id) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(student.name)
+                                            .font(.headline)
+                                        Text(student.subject)
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Text(student.grade)
+                                        .font(.caption2)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.blue.opacity(0.1))
+                                        .foregroundColor(.blue)
+                                        .cornerRadius(4)
                                 }
                             }
+                            .tag(student.id)
                         }
                     }
-                    .tag(student.id)
+                }
+                
+                if !archivedFiltered.isEmpty {
+                    Section("Archived Students") {
+                        ForEach(archivedFiltered) { student in
+                            NavigationLink(value: student.id) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(student.name)
+                                            .font(.headline)
+                                            .foregroundColor(.secondary)
+                                        Text(student.subject)
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    VStack(alignment: .trailing, spacing: 4) {
+                                        Text(student.grade)
+                                            .font(.caption2)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color.secondary.opacity(0.1))
+                                            .foregroundColor(.secondary)
+                                            .cornerRadius(4)
+                                        
+                                        Text("Inactive")
+                                            .font(.system(size: 8, weight: .bold))
+                                            .foregroundColor(.red)
+                                    }
+                                }
+                            }
+                            .tag(student.id)
+                        }
+                    }
                 }
             }
             .searchable(text: $searchText, prompt: "Search students...")
@@ -194,6 +231,7 @@ struct OverviewTab: View {
     let student: Student
     let totalBilled: Double
     let totalHours: Double
+    @EnvironmentObject var store: StorageManager
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -203,7 +241,7 @@ struct OverviewTab: View {
                     Text("Rate Structure")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Text(student.rateType == .hourly ? "₹\(Int(student.rateValue)) / Hour" : "₹\(Int(student.rateValue)) / Month")
+                    Text(student.rateType == .hourly ? "\(store.formatCurrency(student.rateValue)) / Hour" : "\(store.formatCurrency(student.rateValue)) / Month")
                         .font(.title3)
                         .fontWeight(.bold)
                 }
@@ -217,7 +255,7 @@ struct OverviewTab: View {
                     Text("Total Revenue")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Text("₹\(Int(totalBilled))")
+                    Text(store.formatCurrency(totalBilled))
                         .font(.title3)
                         .fontWeight(.bold)
                 }
@@ -542,7 +580,7 @@ struct BillingTab: View {
                         Text(payment.hoursTaught > 0 ? String(format: "%.1f Hrs", payment.hoursTaught) : "--")
                     }
                     TableColumn("Amount") { payment in
-                        Text(String(format: "₹%.2f", payment.amount))
+                        Text(store.formatCurrency(payment.amount))
                             .fontWeight(.bold)
                             .foregroundColor(.green)
                     }
@@ -579,6 +617,7 @@ struct EditStudentSheet: View {
     @State private var scheduleNotes: String
     @State private var notes: String
     @State private var isActive: Bool
+    @State private var validationError: String? = nil
     
     init(student: Student) {
         self.student = student
@@ -600,6 +639,13 @@ struct EditStudentSheet: View {
                 .font(.headline)
                 .padding(.top)
             
+            if let error = validationError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding(.horizontal)
+            }
+            
             Form {
                 TextField("Student Name", text: $name)
                 TextField("Subject", text: $subject)
@@ -613,14 +659,14 @@ struct EditStudentSheet: View {
                 }
                 .pickerStyle(.segmented)
                 
-                TextField("Rate (₹)", text: $rateValueString)
+                TextField("Rate (\(store.settings.currencyCode))", text: $rateValueString)
                 TextField("Email", text: $email)
                 TextField("Phone", text: $phone)
                 TextField("Schedule Time", text: $scheduleNotes)
                 TextField("Focus Notes", text: $notes)
             }
             .formStyle(.grouped)
-            .frame(width: 450, height: 380)
+            .frame(width: 450, height: 350)
             
             HStack {
                 Button("Delete Student", role: .destructive) {
@@ -636,9 +682,18 @@ struct EditStudentSheet: View {
                 }
                 
                 Button("Save Changes") {
-                    guard !name.isEmpty, let rateVal = Double(rateValueString) else { return }
+                    let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmedName.isEmpty {
+                        validationError = "Student name is required."
+                        return
+                    }
+                    guard let rateVal = Double(rateValueString), rateVal >= 0 else {
+                        validationError = "Please enter a valid billing rate (positive number)."
+                        return
+                    }
+                    
                     var updated = student
-                    updated.name = name
+                    updated.name = trimmedName
                     updated.subject = subject
                     updated.grade = grade
                     updated.isActive = isActive
@@ -653,7 +708,6 @@ struct EditStudentSheet: View {
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(name.isEmpty || Double(rateValueString) == nil)
             }
             .padding([.horizontal, .bottom])
         }
@@ -670,12 +724,20 @@ struct AddProgressLogSheet: View {
     @State private var homework = ""
     @State private var notes = ""
     @State private var date = Date()
+    @State private var validationError: String? = nil
     
     var body: some View {
         VStack(spacing: 20) {
             Text("Log Student Session")
                 .font(.headline)
                 .padding(.top)
+            
+            if let error = validationError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding(.horizontal)
+            }
             
             Form {
                 DatePicker("Session Date", selection: $date, displayedComponents: [.date])
@@ -701,13 +763,16 @@ struct AddProgressLogSheet: View {
                 }
                 Spacer()
                 Button("Log Session") {
-                    guard !topicCovered.isEmpty else { return }
-                    let log = ProgressLog(studentId: student.id, date: date, topicCovered: topicCovered, understandingLevel: understandingLevel, homeworkAssigned: homework, notes: notes)
+                    let trimmedTopic = topicCovered.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmedTopic.isEmpty {
+                        validationError = "Topic covered is required."
+                        return
+                    }
+                    let log = ProgressLog(studentId: student.id, date: date, topicCovered: trimmedTopic, understandingLevel: understandingLevel, homeworkAssigned: homework, notes: notes)
                     store.addProgressLog(log)
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(topicCovered.isEmpty)
             }
             .padding([.horizontal, .bottom])
         }
@@ -722,12 +787,20 @@ struct AddAssignmentSheetForStudent: View {
     @State private var title = ""
     @State private var description = ""
     @State private var dueDate = Date().addingTimeInterval(86400 * 7)
+    @State private var validationError: String? = nil
     
     var body: some View {
         VStack(spacing: 20) {
             Text("Assign Homework to \(student.name)")
                 .font(.headline)
                 .padding(.top)
+            
+            if let error = validationError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding(.horizontal)
+            }
             
             Form {
                 TextField("Assignment Title", text: $title)
@@ -743,13 +816,16 @@ struct AddAssignmentSheetForStudent: View {
                 }
                 Spacer()
                 Button("Assign") {
-                    guard !title.isEmpty else { return }
-                    let assignment = Assignment(studentId: student.id, title: title, description: description, dueDate: dueDate)
+                    let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmedTitle.isEmpty {
+                        validationError = "Assignment title is required."
+                        return
+                    }
+                    let assignment = Assignment(studentId: student.id, title: trimmedTitle, description: description, dueDate: dueDate)
                     store.addAssignment(assignment)
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(title.isEmpty)
             }
             .padding([.horizontal, .bottom])
         }
